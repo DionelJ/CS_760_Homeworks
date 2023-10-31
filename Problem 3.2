@@ -1,0 +1,92 @@
+   def __init__(self, input_dim=784, hidden_dim=300, output_dim=10,
+                 learning_rate=0.1, random_seed=1234):
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+        self.learning_rate = learning_rate
+        self.random_seed = random_seed
+
+        # Xavier weight initialization
+        self.W1 = np.random.uniform(low=-1/np.sqrt(self.input_dim),
+                                    high=1/np.sqrt(self.input_dim),
+                                    size=(self.input_dim, self.hidden_dim))
+        self.W2 = np.random.uniform(low=-1/np.sqrt(self.hidden_dim),
+                                    high=1/np.sqrt(self.hidden_dim),
+                                    size=(self.hidden_dim, self.output_dim))
+
+    def sigmoid(self, X, derivative=False):
+        if derivative:
+            return (np.exp(-X))/((np.exp(-X)+1)**2)
+        else:
+            return 1/(1 + np.exp(-X))
+
+    def softmax(self, X, derivative=False):
+        e_X = np.exp(X - X.max())
+        if derivative:
+            return e_X / np.sum(e_X, axis=0) * (1 - e_X / np.sum(e_X, axis=0))
+        else:
+            return e_X / np.sum(e_X, axis=0)
+
+    def cross_entropy_loss(self, y, y_pred, derivative=False):
+        if derivative:
+            print(y_pred)
+            return -1 * np.sum(y / y_pred)
+        else:
+            return -1 * np.sum(y * np.log(y_pred))
+
+    def forwardpass(self, X):
+        self.z1 = np.dot(np.transpose(self.W1), X)
+        self.a1 = self.sigmoid(self.z1)
+        self.z2 = np.dot(np.transpose(self.W2), self.a1)
+        y_pred = self.softmax(self.z2)
+        return y_pred
+
+    def backwardpass(self, y, y_pred, X):
+        print('backward')
+        d_loss_y_pred = self.cross_entropy_loss(y, y_pred, derivative=True)
+        d_y_pred_z2 = self.softmax(self.z2, derivative=True)
+        d_loss_z2 = d_loss_y_pred * d_y_pred_z2
+        d_loss_W2 = np.outer(d_loss_z2, self.a1)
+        self.W2 = self.W2 + self.learning_rate * np.transpose(d_loss_W2)
+
+        d_a1_z1 = self.sigmoid(self.z1, derivative=True)
+        d_loss_a1 = np.dot(d_loss_z2, np.transpose(self.W2))
+        d_loss_z1 = np.multiply(d_loss_a1, d_a1_z1)
+        d_loss_W1 = np.outer(d_loss_z1, X)
+        self.W1 = self.W1 + self.learning_rate * np.transpose(d_loss_W1)
+
+        
+epochs = 10
+learning_rate = 0.1
+random_seed = 1234
+
+def to_one_hot(y, num_classes=10):
+    return np.eye(num_classes)[y]
+
+
+
+#MNIST Dataset
+training_images = idx2numpy.convert_from_file('train-images-idx3-ubyte')
+test_images = idx2numpy.convert_from_file('t10k-images-idx3-ubyte')
+training_labels = idx2numpy.convert_from_file('train-labels-idx1-ubyte')
+test_labels = idx2numpy.convert_from_file('t10k-labels-idx1-ubyte')
+
+
+# initialize NN model
+model = NN(learning_rate=learning_rate, random_seed=random_seed)
+
+# train model
+
+for epoch in range(epochs):
+    print('epoch', epoch+1, '/', 'epochs')
+    epoch_accuracy = 0
+    for i in range(training_images.shape[0]):
+        print('image', i+1, '/', training_images.shape[0])
+        X = training_images[i, :, :].ravel()
+        y = to_one_hot(training_labels[i])
+        y_pred = model.forwardpass(X)
+        if np.argmax(y_pred) == np.argmax(y):
+            epoch_accuracy += 1
+        model.backwardpass(y, y_pred, X)
+    epoch_accuracy = epoch_accuracy / training_images.shape[0]
+    print('*** accuracy (epoch', epoch, ') =', epoch_accuracy, '***')
